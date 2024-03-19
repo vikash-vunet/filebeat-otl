@@ -12,7 +12,7 @@ import (
 // var logger = logp.NewLogger("ClickHouse")
 
 func init() {
-	outputs.RegisterType("clickHouse", makeOtlp)
+	outputs.RegisterType("otlp", makeOtlp)
 }
 
 func makeOtlp(
