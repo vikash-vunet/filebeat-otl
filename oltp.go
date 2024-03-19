@@ -30,15 +30,21 @@ func makeOtlp(
 		return outputs.Fail(err)
 	}
 
+	log.Debug("Config loaded")
+
 	client, err := newClient(observer, config.oltpEndpoint, config.serviceName, config.serviceVersion, time.Duration(config.retryInterval), config.targetURL)
 	if err != nil {
 		return outputs.Fail(err)
 	}
 
+	log.Debug("Client Created")
+
 	retry := 0
 	if config.MaxRetries < 0 {
 		retry = -1
 	}
+
+	log.Debug("retry loaded")
 
 	return outputs.Success(config.BulkMaxSize, retry, client)
 }
