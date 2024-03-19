@@ -65,6 +65,7 @@ func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithHeaders(headers),
 		otlptracegrpc.WithEndpoint(c.oltpEndpoint),
+		otlptracegrpc.WithInsecure(),
 	)
 	return otlptrace.New(ctx, client)
 }
