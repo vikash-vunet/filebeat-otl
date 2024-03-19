@@ -25,6 +25,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+var (
+	logger = logp.NewLogger("otlp")
+)
+
 type client struct {
 	log            *logp.Logger
 	observer       outputs.Observer
@@ -99,14 +103,18 @@ func newTraceProvider(exp *otlptrace.Exporter, c *client) *sdktrace.TracerProvid
 func (c *client) Connect() error {
 	// Implement connection logic
 	ctx := context.Background()
+	
+	logger.Debug("connection started")
 	exp, err := newExporter(ctx, c)
 	if err != nil {
 		log.Fatalf("failed to initialize exporter: %v", err)
 	}
+
 	tp := newTraceProvider(exp, c)
-	
+	logger.Debug("new trace provider set up")
 	c.tp = tp
 	otel.SetTracerProvider(tp)
+	logger.Debug("set trace provider")
 
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
@@ -120,12 +128,15 @@ func (c *client) Connect() error {
 
 	c.ctx = ctx;
 
+	logger.Debug("connection successful")
+
 	return nil
 }
 
 func (c *client) Close() error {
 	// Implement closing logic
 	func() { _ = c.tp.Shutdown(c.ctx) }()
+	logger.Debug("closed connection")
 	return nil
 }
 
@@ -139,8 +150,12 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 		panic("no batch")
 	}
 
+	logger.Debug("publish started")
+
 	events := batch.Events()
 	c.observer.NewBatch(len(events))
+
+	logger.Debug("Started reading events")
 
 	for _ , event := range events {
 		content := event.Content
@@ -168,6 +183,7 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 
 func makeRequest(ctx context.Context, jsonData []byte, c *client) {
 	// Start a span for the HTTP request
+	logger.Debug("started requests")
 	ctx, span := c.tracer.Start(ctx, "makeRequest")
 	defer span.End()
 
