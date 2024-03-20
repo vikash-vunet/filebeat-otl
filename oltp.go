@@ -5,16 +5,17 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
-	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
 )
 
-// var logger = logp.NewLogger("ClickHouse")
-
+// entrypoint of the plugin
 func init() {
 	outputs.RegisterType("otlp", makeOtlp)
 }
 
+/*
+The method to create successful output connection with config and new client
+*/
 func makeOtlp(
 	_ outputs.IndexManager,
 	beat beat.Info,
@@ -22,29 +23,31 @@ func makeOtlp(
 	cfg *common.Config,
 ) (outputs.Group, error) {
 
-	log := logp.NewLogger("otlp")
-	log.Debug("initialize otlp output")
+	logger.Debug("initialize otlp output")
 
+	// config object for OTLP
 	config := defaultConfig
+
 	if err := cfg.Unpack(&config); err != nil {
 		return outputs.Fail(err)
 	}
+	
+	logger.Debug("Config loaded")
 
-	log.Debug("Config loaded")
+	// new client object of OTLP
+	client, err := newClient(
+		observer, config.oltpEndpoint,
+		config.serviceName,
+		config.serviceVersion,
+		time.Duration(config.retryInterval),
+		config.targetURL,
+	)
 
-	client, err := newClient(observer, config.oltpEndpoint, config.serviceName, config.serviceVersion, time.Duration(config.retryInterval), config.targetURL)
 	if err != nil {
 		return outputs.Fail(err)
 	}
 
-	log.Debug("Client Created")
+	logger.Debug("Client Created")
 
-	retry := 0
-	if config.MaxRetries < 0 {
-		retry = -1
-	}
-
-	log.Debug("retry loaded")
-
-	return outputs.Success(config.BulkMaxSize, retry, client)
+	return outputs.Success(config.BulkMaxSize, config.MaxRetries, client)
 }

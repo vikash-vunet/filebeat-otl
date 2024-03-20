@@ -4,6 +4,7 @@ import (
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 )
 
+// config object structure to store all OTLP Configs
 type OtlConfig struct {
 	serviceName    string       `config:"service_name"`
 	serviceVersion string       `config:"service_version"`
@@ -16,9 +17,10 @@ type OtlConfig struct {
 	MaxRetries     int          `config:"max_retries"`
 }
 
+// default config object
 var (
 	defaultConfig = OtlConfig{
-		serviceName:    "sys-devices-pci0000:00-0000:00:03.0-net-enp0s3.device",
+		serviceName:    "sys-devices-vunet",
 		serviceVersion: "1.0.0",
 		targetURL:      "http://localhost:8081/uptime",
 		oltpEndpoint:   "localhost:4317",

@@ -1,7 +1,6 @@
 package filebeatotl
 
 import (
-	// "context"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,20 +37,27 @@ type client struct {
 	serviceVersion string
 	ctx            context.Context
 	codec          codec.Codec
-	tp 		   *sdktrace.TracerProvider
-	tracer 	   trace.Tracer
+	tp             *sdktrace.TracerProvider
+	tracer         trace.Tracer
 	targetURL      string
 }
 
-func newClient(observer outputs.Observer, endpoint string, service_name string, service_version string, timeout time.Duration, targetURL string) (*client, error) {
+func newClient(
+	observer outputs.Observer,
+	endpoint string,
+	service_name string,
+	service_version string,
+	timeout time.Duration,
+	targetURL string,
+) (*client, error) {
 	c := &client{
-		log:          logp.NewLogger("otlp"),
-		observer:     observer,
-		oltpEndpoint: endpoint,
-		timeout:      timeout,
-		serviceName: service_name,
+		log:            logp.NewLogger("otlp"),
+		observer:       observer,
+		oltpEndpoint:   endpoint,
+		timeout:        timeout,
+		serviceName:    service_name,
 		serviceVersion: service_version,
-		targetURL: targetURL,
+		targetURL:      targetURL,
 	}
 
 	return c, nil
@@ -72,7 +78,7 @@ func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
 
 func newTraceProvider(exp *otlptrace.Exporter, c *client) *sdktrace.TracerProvider {
 	if len(c.serviceName) == 0 {
-		c.serviceName = "sys-devices-pci0000:00-0000:00:03.0-net-enp0s3.device"
+		c.serviceName = "sys-devices-vunet"
 		log.Printf("Using default service name %s", c.serviceName)
 	}
 
@@ -104,7 +110,7 @@ func newTraceProvider(exp *otlptrace.Exporter, c *client) *sdktrace.TracerProvid
 func (c *client) Connect() error {
 	// Implement connection logic
 	ctx := context.Background()
-	
+
 	logger.Debug("connection started")
 	exp, err := newExporter(ctx, c)
 	if err != nil {
@@ -127,7 +133,7 @@ func (c *client) Connect() error {
 	c.tracer = tp.Tracer(c.serviceName, trace.WithInstrumentationVersion(c.serviceVersion))
 	fmt.Println(c.tracer)
 
-	c.ctx = ctx;
+	c.ctx = ctx
 
 	logger.Debug("connection successful")
 
@@ -158,7 +164,7 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 
 	logger.Debug("Started reading events")
 
-	for _ , event := range events {
+	for _, event := range events {
 		content := event.Content
 		data, err := content.GetValue("message")
 		if err != nil {
@@ -166,17 +172,15 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 		}
 
 		mergedData := map[string]interface{}{
-			"data": 12,
-			"message": data,
+			"log": data,
 		}
-			jsonData, err := json.Marshal(mergedData)
-			if err != nil {
-				fmt.Printf("Error encoding data to JSON: %v\n", err)
-				return err
-			} else {
-				makeRequest(c.ctx, jsonData, c)
-			}
-
+		jsonData, err := json.Marshal(mergedData)
+		if err != nil {
+			fmt.Printf("Error encoding data to JSON: %v\n", err)
+			return err
+		} else {
+			makeRequest(c.ctx, jsonData, c)
+		}
 	}
 
 	return nil
@@ -231,4 +235,3 @@ func (c *client) String() string {
 	return "otlp(" + c.oltpEndpoint + ")"
 }
 
-// Implement other necessary methods and helper functions here
