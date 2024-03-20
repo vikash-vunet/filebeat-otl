@@ -6,13 +6,13 @@ import (
 
 // config object structure to store all OTLP Configs
 type OtlConfig struct {
-	serviceName    string       `config:"service_name"`
-	serviceVersion string       `config:"service_version"`
-	codec          codec.Config `config:"codec"`
-	targetURL      string       `config:"target_url"`
-	oltpEndpoint   string       `config:"oltp_endpoint"`
-	retryInterval  int          `config:"retry_interval"`
-	timeout        int          `config:"timeout"`
+	ServiceName    string       `config:"service_name"`
+	ServiceVersion string       `config:"service_version"`
+	Codec          codec.Config `config:"codec"`
+	TargetURL      string       `config:"target_url"`
+	OltpEndpoint   string       `config:"oltp_endpoint"`
+	RetryInterval  int          `config:"retry_interval"`
+	Timeout        int          `config:"timeout"`
 	BulkMaxSize    int          `config:"bulk_max_size"`
 	MaxRetries     int          `config:"max_retries"`
 }
@@ -20,12 +20,12 @@ type OtlConfig struct {
 // default config object
 var (
 	defaultConfig = OtlConfig{
-		serviceName:    "sys-devices-vunet",
-		serviceVersion: "1.0.0",
-		targetURL:      "http://localhost:8081/uptime",
-		oltpEndpoint:   "localhost:4317",
-		retryInterval:  60,
-		timeout:        300,
+		ServiceName:    "sys-devices-vunet",
+		ServiceVersion: "1.0.0",
+		TargetURL:      "http://localhost:8081/uptime",
+		OltpEndpoint:   "localhost:4317",
+		RetryInterval:  60,
+		Timeout:        300,
 		BulkMaxSize:    1000,
 		MaxRetries:     3,
 	}

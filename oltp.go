@@ -36,11 +36,11 @@ func makeOtlp(
 
 	// new client object of OTLP
 	client, err := newClient(
-		observer, config.oltpEndpoint,
-		config.serviceName,
-		config.serviceVersion,
-		time.Duration(config.retryInterval),
-		config.targetURL,
+		observer, config.OltpEndpoint,
+		config.ServiceName,
+		config.ServiceVersion,
+		time.Duration(config.RetryInterval),
+		config.TargetURL,
 	)
 
 	if err != nil {
