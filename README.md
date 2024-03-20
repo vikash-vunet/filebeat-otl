@@ -14,7 +14,7 @@ cd beat/src/github.com/elastic/beats
 ```
 ## then, Install OTLP Output, under GOPATH directory
 ```
-go get -u github.com/vikash-vunet/filebeat-otl
+go get -u github.com/vikash-vunet/filebeat-otl@latest-commit-id
 ```
 ## modify beats outputs includes, add OTLP output
 ```
