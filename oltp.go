@@ -31,7 +31,7 @@ func makeOtlp(
 	if err := cfg.Unpack(&config); err != nil {
 		return outputs.Fail(err)
 	}
-	
+
 	logger.Debug("Config loaded")
 
 	// new client object of OTLP
@@ -40,7 +40,6 @@ func makeOtlp(
 		config.ServiceName,
 		config.ServiceVersion,
 		time.Duration(config.RetryInterval),
-		config.TargetURL,
 	)
 
 	if err != nil {

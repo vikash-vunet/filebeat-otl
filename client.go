@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"strings"
+
+	// "net/http"
+	// "strings"
 	"time"
 
 	"github.com/elastic/beats/v7/libbeat/logp"
@@ -39,7 +40,6 @@ type client struct {
 	codec          codec.Codec
 	tp             *sdktrace.TracerProvider
 	tracer         trace.Tracer
-	targetURL      string
 }
 
 func newClient(
@@ -48,7 +48,6 @@ func newClient(
 	service_name string,
 	service_version string,
 	timeout time.Duration,
-	targetURL string,
 ) (*client, error) {
 	c := &client{
 		log:            logp.NewLogger("otlp"),
@@ -57,7 +56,6 @@ func newClient(
 		timeout:        timeout,
 		serviceName:    service_name,
 		serviceVersion: service_version,
-		targetURL:      targetURL,
 	}
 
 	return c, nil
@@ -131,7 +129,6 @@ func (c *client) Connect() error {
 	)
 
 	c.tracer = tp.Tracer(c.serviceName, trace.WithInstrumentationVersion(c.serviceVersion))
-	fmt.Println(c.tracer)
 
 	c.ctx = ctx
 
@@ -149,7 +146,7 @@ func (c *client) Close() error {
 
 func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	// Implement publishing logic
-
+	fmt.Println("time started", time.Now().Local())
 	if c == nil {
 		panic("no client")
 	}
@@ -161,13 +158,15 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 
 	events := batch.Events()
 	c.observer.NewBatch(len(events))
-
 	logger.Debug("Started reading events")
+
+	var retryEvent []publisher.Event
 
 	for _, event := range events {
 		content := event.Content
 		data, err := content.GetValue("message")
 		if err != nil {
+			retryEvent = append(retryEvent, event)
 			fmt.Println("Error getting value from event")
 		}
 
@@ -177,11 +176,18 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 		jsonData, err := json.Marshal(mergedData)
 		if err != nil {
 			fmt.Printf("Error encoding data to JSON: %v\n", err)
-			return err
+			retryEvent = append(retryEvent, event)
 		} else {
-			makeRequest(c.ctx, jsonData, c)
+			go makeRequest(c.ctx, jsonData, c)
 		}
 	}
+	if len(retryEvent) != 0 {
+		batch.RetryEvents(retryEvent)
+	} else {
+		batch.ACK()
+	}
+
+	fmt.Println("time ended", time.Now().Local())
 
 	return nil
 }
@@ -189,49 +195,11 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 func makeRequest(ctx context.Context, jsonData []byte, c *client) {
 	// Start a span for the HTTP request
 	logger.Debug("started requests")
-	ctx, span := c.tracer.Start(ctx, "makeRequest")
+	ctx, span := c.tracer.Start(ctx, "new log", trace.WithAttributes(attribute.String("data", string(jsonData))))
 	defer span.End()
 
-	span.AddEvent("Did some cool stuff")
-
-	// Marshal uptime data to JSON
-
-	// Create a new HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", c.targetURL, strings.NewReader(string(jsonData)))
-	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return
-	}
-
-	// Inject the span context into the HTTP request
-	propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
-
-	// Use a standard HTTP client to perform the request
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		log.Printf("Error making request: %v", err)
-		return
-	}
-	defer res.Body.Close()
-
-	// Print request details
-	fmt.Printf("Request to %s\n", c.targetURL)
-	fmt.Printf("Status Code: %d\n", res.StatusCode)
-	fmt.Printf("Headers: %v\n", res.Header)
-
-	// Don't read the response body here
-	// ...
-
-	// Set attributes for the span
-	span.SetAttributes(
-		attribute.Int("status_code", res.StatusCode),
-	)
-
-	span.AddEvent("Cancelled wait due to external signal", trace.WithAttributes(attribute.Int("pid", 4328), attribute.String("signal", "SIGHUP")))
 }
 
 func (c *client) String() string {
 	return "otlp(" + c.oltpEndpoint + ")"
 }
-

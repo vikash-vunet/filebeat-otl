@@ -9,7 +9,6 @@ type OtlConfig struct {
 	ServiceName    string       `config:"service_name"`
 	ServiceVersion string       `config:"service_version"`
 	Codec          codec.Config `config:"codec"`
-	TargetURL      string       `config:"target_url"`
 	OltpEndpoint   string       `config:"oltp_endpoint"`
 	RetryInterval  int          `config:"retry_interval"`
 	Timeout        int          `config:"timeout"`
@@ -22,7 +21,6 @@ var (
 	defaultConfig = OtlConfig{
 		ServiceName:    "sys-devices-vunet",
 		ServiceVersion: "1.0.0",
-		TargetURL:      "http://localhost:8081/uptime",
 		OltpEndpoint:   "localhost:4317",
 		RetryInterval:  60,
 		Timeout:        300,
