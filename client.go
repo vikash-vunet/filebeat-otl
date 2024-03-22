@@ -23,6 +23,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -66,10 +67,15 @@ func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
 		// Remove the Lightstep token handling
 	}
 
+	creds, err := credentials.NewClientTLSFromFile("/home/vunet-systems/development/otel_cert/cacert.pem", "/home/vunet-systems/development/otel_cert/cacert.key")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load TLS credentials: %v", err)
+	}
+
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithHeaders(headers),
 		otlptracegrpc.WithEndpoint(c.oltpEndpoint),
-		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithTLSCredentials(creds),
 	)
 	return otlptrace.New(ctx, client)
 }
