@@ -67,7 +67,7 @@ func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
 		// Remove the Lightstep token handling
 	}
 
-	creds, err := credentials.NewClientTLSFromFile("/home/vunet-systems/development/otel_cert/cacert.pem", "/home/vunet-systems/development/otel_cert/cacert.key")
+	creds, err := credentials.NewClientTLSFromFile("/home/vunet-systems/development/otel_cert/cacert.pem", "127.0.0.1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load TLS credentials: %v", err)
 	}
@@ -176,10 +176,10 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 			fmt.Println("Error getting value from event")
 		}
 
-		mergedData := map[string]interface{}{
-			"log": data,
-		}
-		jsonData, err := json.Marshal(mergedData)
+		// mergedData := map[string]interface{}{
+		// 	"log": data,
+		// }
+		jsonData, err := json.Marshal(data)
 		if err != nil {
 			fmt.Printf("Error encoding data to JSON: %v\n", err)
 			retryEvent = append(retryEvent, event)
