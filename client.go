@@ -202,6 +202,8 @@ func makeRequest(jsonData []byte, c *client) {
 
 	s := string(jsonData)
 	lrc := logs.LogRecordConfig{
+		Timestamp: nil,
+		ObservedTimestamp: time.Now(),
 		Body: &s,
 	}
 	logRecord := logs.NewLogRecord(lrc)
