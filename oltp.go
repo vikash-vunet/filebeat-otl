@@ -5,7 +5,7 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/outputs"
-	"github.com/elastic/elastic-agent-libs/config"
+	c "github.com/elastic/elastic-agent-libs/config"
 )
 
 // entrypoint of the plugin
@@ -20,7 +20,7 @@ func makeOtlp(
 	_ outputs.IndexManager,
 	beat beat.Info,
 	observer outputs.Observer,
-	cfg config.Namespace,
+	cfg *c.C,
 ) (outputs.Group, error) {
 
 	logger.Debug("initialize otlp output")
@@ -48,5 +48,5 @@ func makeOtlp(
 
 	logger.Debug("Client Created")
 
-	return outputs.Success(cfg, config.BulkMaxSize, config.MaxRetries, client)
+	return outputs.Success(config.Queue, config.BulkMaxSize, config.MaxRetries, client)
 }
