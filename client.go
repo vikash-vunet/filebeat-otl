@@ -2,7 +2,7 @@ package filebeatotl
 
 import (
 	"context"
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"log"
 
@@ -15,10 +15,10 @@ import (
 	"github.com/agoda-com/opentelemetry-logs-go/exporters/otlp/otlplogs/otlplogsgrpc"
 	"github.com/agoda-com/opentelemetry-logs-go/logs"
 	sdk "github.com/agoda-com/opentelemetry-logs-go/sdk/logs"
-	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/elastic/elastic-agent-libs/logp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -40,6 +40,7 @@ type client struct {
 	codec          codec.Codec
 	lp             *sdk.LoggerProvider
 	logEmitter     logs.Logger
+	index          string
 }
 
 func newClient(
@@ -48,6 +49,8 @@ func newClient(
 	service_name string,
 	service_version string,
 	timeout time.Duration,
+	index string,
+	codec codec.Codec,
 ) (*client, error) {
 	c := &client{
 		log:            logp.NewLogger("otlp"),
@@ -56,6 +59,8 @@ func newClient(
 		timeout:        timeout,
 		serviceName:    service_name,
 		serviceVersion: service_version,
+		index:          index,
+		codec: codec,
 	}
 
 	return c, nil
@@ -167,22 +172,23 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	var retryEvent []publisher.Event
 
 	for _, event := range events {
-		content := event.Content
-		data, err := content.GetValue("message")
-		if err != nil {
-			retryEvent = append(retryEvent, event)
-			fmt.Println("Error getting value from event")
-		}
+		content := &event.Content
+		//  attr :=  &[]attribute.KeyValue{}
 
-		// mergedData := map[string]interface{}{
-		// 	"log": data,
+		// message, err := content.GetValue("message")
+		// if err != nil {
+		// 	retryEvent = append(retryEvent, event)
+		// 	fmt.Println("Error getting message from event")
 		// }
-		jsonData, err := json.Marshal(data)
+
+		data, err := c.codec.Encode(c.index,content)
+
+		// jsonData, err := json.Marshal(data)
 		if err != nil {
 			fmt.Printf("Error encoding data to JSON: %v\n", err)
 			retryEvent = append(retryEvent, event)
 		} else {
-			go makeRequest(jsonData, c)
+			makeRequest(data, c)
 		}
 	}
 	if len(retryEvent) != 0 {
@@ -199,12 +205,13 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 func makeRequest(jsonData []byte, c *client) {
 	// Start a span for the HTTP request
 	logger.Debug("started requests")
-
 	s := string(jsonData)
+	fmt.Println("output ",s)
+	fmt.Println("---")
 	lrc := logs.LogRecordConfig{
-		Timestamp: nil,
+		Timestamp:         nil,
 		ObservedTimestamp: time.Now(),
-		Body: &s,
+		Body:              &s,
 	}
 	logRecord := logs.NewLogRecord(lrc)
 	c.logEmitter.Emit(logRecord)
