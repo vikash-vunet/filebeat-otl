@@ -48,6 +48,9 @@ func makeOtlp(
 		time.Duration(config.RetryInterval),
 		beat.IndexPrefix,
 		codec,
+		config.Type,
+		config.TLSCredentials,
+		config.TLSServerURL,
 	)
 
 	if err != nil {

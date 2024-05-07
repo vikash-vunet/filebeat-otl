@@ -16,6 +16,9 @@ type OtlConfig struct {
 	BulkMaxSize    int              `config:"bulk_max_size"`
 	MaxRetries     int              `config:"max_retries"`
 	Queue          config.Namespace `config:"queue"`
+	Type           string           `config:"type"`
+	TLSCredentials string           `config:"tls_credentials"`
+	TLSServerURL   string           `config:"tls_server_url"`
 }
 
 // default config object
@@ -28,5 +31,8 @@ var (
 		Timeout:        300,
 		BulkMaxSize:    1000,
 		MaxRetries:     3,
+		Type:           "logs",
+		TLSCredentials: "/home/vunet-systems/development/otel_cert/cacert.pem",
+		TLSServerURL:   "127.0.0.1",
 	}
 )
