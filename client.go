@@ -2,7 +2,7 @@ package filebeatotl
 
 import (
 	"context"
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"log"
 
@@ -10,19 +10,17 @@ import (
 	// "strings"
 	"time"
 
-	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/elastic/elastic-agent-libs/logp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/metric"
+	sdk "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -39,8 +37,9 @@ type client struct {
 	serviceVersion string
 	ctx            context.Context
 	codec          codec.Codec
-	tp             *sdktrace.TracerProvider
-	tracer         trace.Tracer
+	mp             *sdk.MeterProvider
+	meter          metric.Float64Counter
+	index          string
 }
 
 func newClient(
@@ -49,6 +48,8 @@ func newClient(
 	service_name string,
 	service_version string,
 	timeout time.Duration,
+	index string,
+	codec codec.Codec,
 ) (*client, error) {
 	c := &client{
 		log:            logp.NewLogger("otlp"),
@@ -57,12 +58,14 @@ func newClient(
 		timeout:        timeout,
 		serviceName:    service_name,
 		serviceVersion: service_version,
+		index:          index,
+		codec:          codec,
 	}
 
 	return c, nil
 }
 
-func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
+func newExporter(ctx context.Context, c *client) (*otlpmetricgrpc.Exporter, error) {
 	var headers = map[string]string{
 		// Remove the Lightstep token handling
 	}
@@ -72,15 +75,12 @@ func newExporter(ctx context.Context, c *client) (*otlptrace.Exporter, error) {
 		return nil, fmt.Errorf("failed to load TLS credentials: %v", err)
 	}
 
-	client := otlptracegrpc.NewClient(
-		otlptracegrpc.WithHeaders(headers),
-		otlptracegrpc.WithEndpoint(c.oltpEndpoint),
-		otlptracegrpc.WithTLSCredentials(creds),
-	)
-	return otlptrace.New(ctx, client)
+	return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithHeaders(headers),
+		otlpmetricgrpc.WithEndpoint(c.oltpEndpoint),
+		otlpmetricgrpc.WithTLSCredentials(creds))
 }
 
-func newTraceProvider(exp *otlptrace.Exporter, c *client) *sdktrace.TracerProvider {
+func newMetricProvider(exp *otlpmetricgrpc.Exporter, c *client) *sdk.MeterProvider {
 	if len(c.serviceName) == 0 {
 		c.serviceName = "sys-devices-vunet"
 		log.Printf("Using default service name %s", c.serviceName)
@@ -105,9 +105,10 @@ func newTraceProvider(exp *otlptrace.Exporter, c *client) *sdktrace.TracerProvid
 	if rErr != nil {
 		panic(rErr)
 	}
-	return sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
-		sdktrace.WithResource(resource),
+
+	return sdk.NewMeterProvider(
+		sdk.WithReader(sdk.NewPeriodicReader(exp)),
+		sdk.WithResource(resource),
 	)
 }
 
@@ -121,20 +122,20 @@ func (c *client) Connect() error {
 		log.Fatalf("failed to initialize exporter: %v", err)
 	}
 
-	tp := newTraceProvider(exp, c)
-	logger.Debug("new trace provider set up")
-	c.tp = tp
-	otel.SetTracerProvider(tp)
+	c.mp = newMetricProvider(exp, c)
+	logger.Debug("new metric provider set up")
+
+	otel.SetMeterProvider(c.mp)
 	logger.Debug("set trace provider")
 
-	otel.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		),
+	c.meter, _ = otel.Meter(
+		"otel-meter",
+		metric.WithSchemaURL(semconv.SchemaURL),
+		metric.WithInstrumentationVersion("0.0.1"),
+	).Float64Counter(
+		"demo_server/request_counts",
+		metric.WithDescription("The number of requests received"),
 	)
-
-	c.tracer = tp.Tracer(c.serviceName, trace.WithInstrumentationVersion(c.serviceVersion))
 
 	c.ctx = ctx
 
@@ -145,7 +146,7 @@ func (c *client) Connect() error {
 
 func (c *client) Close() error {
 	// Implement closing logic
-	func() { _ = c.tp.Shutdown(c.ctx) }()
+	func() { _ = c.mp.Shutdown(c.ctx) }()
 	logger.Debug("closed connection")
 	return nil
 }
@@ -169,22 +170,16 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	var retryEvent []publisher.Event
 
 	for _, event := range events {
-		content := event.Content
-		data, err := content.GetValue("message")
-		if err != nil {
-			retryEvent = append(retryEvent, event)
-			fmt.Println("Error getting value from event")
-		}
+		content := &event.Content
 
-		// mergedData := map[string]interface{}{
-		// 	"log": data,
-		// }
-		jsonData, err := json.Marshal(data)
+		data, err := c.codec.Encode(c.index, content)
+
+		// jsonData, err := json.Marshal(data)
 		if err != nil {
 			fmt.Printf("Error encoding data to JSON: %v\n", err)
 			retryEvent = append(retryEvent, event)
 		} else {
-			go makeRequest(c.ctx, jsonData, c)
+			makeRequest(data, c)
 		}
 	}
 	if len(retryEvent) != 0 {
@@ -198,11 +193,12 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	return nil
 }
 
-func makeRequest(ctx context.Context, jsonData []byte, c *client) {
+func makeRequest(jsonData []byte, c *client) {
 	// Start a span for the HTTP request
 	logger.Debug("started requests")
-	ctx, span := c.tracer.Start(ctx, "new log", trace.WithAttributes(attribute.String("data", string(jsonData))))
-	defer span.End()
+	s := string(jsonData)
+	requestCount := c.meter
+	requestCount.Add(c.ctx, 1, metric.WithAttributes(attribute.String("data", s)))
 
 }
 

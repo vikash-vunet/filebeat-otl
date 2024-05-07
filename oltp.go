@@ -5,6 +5,7 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/outputs"
+	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	c "github.com/elastic/elastic-agent-libs/config"
 )
 
@@ -24,11 +25,15 @@ func makeOtlp(
 ) (outputs.Group, error) {
 
 	logger.Debug("initialize otlp output")
-
 	// config object for OTLP
 	config := defaultConfig
 
 	if err := cfg.Unpack(&config); err != nil {
+		return outputs.Fail(err)
+	}
+
+	codec, err := codec.CreateEncoder(beat, config.Codec)
+	if err != nil {
 		return outputs.Fail(err)
 	}
 
@@ -40,6 +45,8 @@ func makeOtlp(
 		config.ServiceName,
 		config.ServiceVersion,
 		time.Duration(config.RetryInterval),
+		beat.IndexPrefix,
+		codec,
 	)
 
 	if err != nil {
