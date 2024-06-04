@@ -32,7 +32,7 @@ var (
 		BulkMaxSize:    1000,
 		MaxRetries:     3,
 		Type:           "logs",
-		TLSCredentials: "/home/vunet-systems/development/otel_cert/cacert.pem",
-		TLSServerURL:   "127.0.0.1",
+		TLSCredentials: "",
+		TLSServerURL:   "",
 	}
 )
