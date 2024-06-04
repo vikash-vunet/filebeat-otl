@@ -94,6 +94,7 @@ func newLogsExporter(ctx context.Context, c *client) (*otlplogs.Exporter, error)
 		client := otlplogsgrpc.NewClient(
 			otlplogsgrpc.WithHeaders(headers),
 			otlplogsgrpc.WithEndpoint(c.oltpEndpoint),
+			otlplogsgrpc.WithInsecure(),
 		)
 	
 		return otlplogs.NewExporter(ctx, otlplogs.WithClient(client))
@@ -122,7 +123,9 @@ func newMetricsExporter(ctx context.Context, c *client) (*otlpmetricgrpc.Exporte
 
 	if c.serviceTLSCredentials == "" || c.serviceTLSServerURL == "" {
 		return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithHeaders(headers),
-		otlpmetricgrpc.WithEndpoint(c.oltpEndpoint))
+		otlpmetricgrpc.WithEndpoint(c.oltpEndpoint),
+		otlpmetricgrpc.WithInsecure(),
+	)
 	}
 
 	creds, err := credentials.NewClientTLSFromFile(c.serviceTLSCredentials, c.serviceTLSServerURL)
