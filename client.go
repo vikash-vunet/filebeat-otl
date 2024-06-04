@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	metricsdk "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -90,6 +90,16 @@ func newLogsExporter(ctx context.Context, c *client) (*otlplogs.Exporter, error)
 		// Remove the Lightstep token handling
 	}
 
+	if c.serviceTLSCredentials == "" || c.serviceTLSServerURL == "" {
+		client := otlplogsgrpc.NewClient(
+			otlplogsgrpc.WithHeaders(headers),
+			otlplogsgrpc.WithEndpoint(c.oltpEndpoint),
+		)
+	
+		return otlplogs.NewExporter(ctx, otlplogs.WithClient(client))
+	}
+
+
 	creds, err := credentials.NewClientTLSFromFile(c.serviceTLSCredentials, c.serviceTLSServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load TLS credentials: %v", err)
@@ -108,6 +118,11 @@ func newLogsExporter(ctx context.Context, c *client) (*otlplogs.Exporter, error)
 func newMetricsExporter(ctx context.Context, c *client) (*otlpmetricgrpc.Exporter, error) {
 	var headers = map[string]string{
 		// Remove the Lightstep token handling
+	}
+
+	if c.serviceTLSCredentials == "" || c.serviceTLSServerURL == "" {
+		return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithHeaders(headers),
+		otlpmetricgrpc.WithEndpoint(c.oltpEndpoint))
 	}
 
 	creds, err := credentials.NewClientTLSFromFile(c.serviceTLSCredentials, c.serviceTLSServerURL)
