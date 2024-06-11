@@ -10,7 +10,7 @@ import (
 	// "strings"
 	"time"
 
-	"github.com/agoda-com/opentelemetry-logs-go"
+	otel "github.com/agoda-com/opentelemetry-logs-go"
 	"github.com/agoda-com/opentelemetry-logs-go/exporters/otlp/otlplogs"
 	"github.com/agoda-com/opentelemetry-logs-go/exporters/otlp/otlplogs/otlplogsgrpc"
 	"github.com/agoda-com/opentelemetry-logs-go/logs"
@@ -96,10 +96,9 @@ func newLogsExporter(ctx context.Context, c *client) (*otlplogs.Exporter, error)
 			otlplogsgrpc.WithEndpoint(c.oltpEndpoint),
 			otlplogsgrpc.WithInsecure(),
 		)
-	
+
 		return otlplogs.NewExporter(ctx, otlplogs.WithClient(client))
 	}
-
 
 	creds, err := credentials.NewClientTLSFromFile(c.serviceTLSCredentials, c.serviceTLSServerURL)
 	if err != nil {
@@ -123,9 +122,9 @@ func newMetricsExporter(ctx context.Context, c *client) (*otlpmetricgrpc.Exporte
 
 	if c.serviceTLSCredentials == "" || c.serviceTLSServerURL == "" {
 		return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithHeaders(headers),
-		otlpmetricgrpc.WithEndpoint(c.oltpEndpoint),
-		otlpmetricgrpc.WithInsecure(),
-	)
+			otlpmetricgrpc.WithEndpoint(c.oltpEndpoint),
+			otlpmetricgrpc.WithInsecure(),
+		)
 	}
 
 	creds, err := credentials.NewClientTLSFromFile(c.serviceTLSCredentials, c.serviceTLSServerURL)
@@ -273,6 +272,7 @@ func (c *client) Close() error {
 func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	// Implement publishing logic
 	fmt.Println("time started", time.Now().Local())
+
 	if c == nil {
 		panic("no client")
 	}
@@ -285,18 +285,11 @@ func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
 	events := batch.Events()
 	c.observer.NewBatch(len(events))
 	logger.Debug("Started reading events")
-
+	fmt.Println("length of events", len(events))
 	var retryEvent []publisher.Event
 
 	for _, event := range events {
 		content := &event.Content
-		//  attr :=  &[]attribute.KeyValue{}
-
-		// message, err := content.GetValue("message")
-		// if err != nil {
-		// 	retryEvent = append(retryEvent, event)
-		// 	fmt.Println("Error getting message from event")
-		// }
 
 		data, err := c.codec.Encode(c.index, content)
 
@@ -323,8 +316,8 @@ func makeRequest(jsonData []byte, c *client) {
 	// Start a span for the HTTP request
 	logger.Debug("started requests")
 	s := string(jsonData)
-	fmt.Println("output ", s)
-	fmt.Println("---")
+	// fmt.Println("output ", s)
+	// fmt.Println("---")
 
 	if c.serviceType == "logs" {
 		lrc := logs.LogRecordConfig{
