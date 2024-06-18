@@ -2,6 +2,7 @@ package filebeatotl
 
 import (
 	"context"
+	"sync"
 	// "encoding/json"
 	"fmt"
 	"log"
@@ -270,46 +271,75 @@ func (c *client) Close() error {
 }
 
 func (c *client) Publish(ctx context.Context, batch publisher.Batch) error {
-	// Implement publishing logic
-	fmt.Println("time started", time.Now().Local())
+    fmt.Println("time started", time.Now().Local())
 
-	if c == nil {
-		panic("no client")
-	}
-	if batch == nil {
-		panic("no batch")
-	}
+    if c == nil {
+        panic("no client")
+    }
+    if batch == nil {
+        panic("no batch")
+    }
 
-	logger.Debug("publish started")
+    logger.Debug("publish started")
 
-	events := batch.Events()
-	c.observer.NewBatch(len(events))
-	logger.Debug("Started reading events")
-	fmt.Println("length of events", len(events))
-	var retryEvent []publisher.Event
+    events := batch.Events()
+    c.observer.NewBatch(len(events))
+    logger.Debug("Started reading events")
+    fmt.Println("length of events", len(events))
 
-	for _, event := range events {
-		content := &event.Content
+    var wg sync.WaitGroup
+    var mu sync.Mutex
+    var retryEvent []publisher.Event
 
-		data, err := c.codec.Encode(c.index, content)
+    jobs := make(chan *publisher.Event, len(events))
+    numWorkers := 100
 
-		// jsonData, err := json.Marshal(data)
-		if err != nil {
-			fmt.Printf("Error encoding data to JSON: %v\n", err)
-			retryEvent = append(retryEvent, event)
-		} else {
-			makeRequest(data, c)
-		}
-	}
-	if len(retryEvent) != 0 {
-		batch.RetryEvents(retryEvent)
-	} else {
-		batch.ACK()
-	}
+    worker := func() {
+        defer wg.Done()
+        for event := range jobs {
+            select {
+            case <-ctx.Done():
+                c.log.Warn("Context canceled, stopping publishing")
+                return
+            default:
+                mu.Lock()
+                data, err := c.codec.Encode(c.index, &event.Content)
+                mu.Unlock()
 
-	fmt.Println("time ended", time.Now().Local())
+                if err != nil {
+                    c.log.Errorf("Error encoding data to JSON: %v", err)
+                    mu.Lock()
+                    retryEvent = append(retryEvent, *event)
+                    mu.Unlock()
+                } else {
+                     makeRequest(data, c)
+                }
+            }
+        }
+    }
 
-	return nil
+    for i := 0; i < numWorkers; i++ {
+        wg.Add(1)
+        go worker()
+    }
+
+    for i := range events {
+        eventCopy := events[i]
+        jobs <- &eventCopy
+    }
+    close(jobs)
+
+    wg.Wait()
+
+    if len(retryEvent) != 0 {
+        batch.RetryEvents(retryEvent)
+    } else {
+        batch.ACK()
+    }
+
+    fmt.Println("time ended", time.Now().Local())
+
+    return nil
 }
 
 func makeRequest(jsonData []byte, c *client) {
